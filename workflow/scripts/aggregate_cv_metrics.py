@@ -33,7 +33,7 @@ def main():
 
     df.to_csv(summary_out, index=False)
     with open(best_threshold_out, "w") as handle:
-        handle.write(f"{best_threshold}\n")
+        json.dump({"best_threshold": float(best_threshold)}, handle)
 
 
 if __name__ == "__main__":

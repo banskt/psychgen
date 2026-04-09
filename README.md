@@ -11,17 +11,18 @@ Copy the example path file and edit the shared-storage paths.
 ```bash
 cp config/paths.example.yaml config/paths.yaml
 ```
+The profile `nygc.yaml` provides a SLURM executor. Edit the executor as required.
 
 ## Dry run
 
 ```bash
-snakemake -n --profile profiles/nygc
+snakemake -n --profile profiles/nygc.yaml
 ```
 
 ## Run
 
 ```bash
-snakemake --profile profiles/slurm --jobs 50
+snakemake --profile profiles/nygc.yaml --jobs 50
 ```
 
 ## Notes

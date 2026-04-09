@@ -24,10 +24,10 @@ def heldout_metrics(ztrue, zhat, zmask):
     mae = np.mean(np.abs(residual))
 
     return {
-        "n_heldout": mask.sum(),
-        "heldout_mse": mse,
-        "heldout_rmse": rmse,
-        "heldout_mae": mae,
+        "n_heldout": int(mask.sum()),
+        "heldout_mse": float(mse),
+        "heldout_rmse": float(rmse),
+        "heldout_mae": float(mae),
     }
 
 
