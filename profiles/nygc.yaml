@@ -1,0 +1,14 @@
+executor: slurm
+jobs: 50
+latency-wait: 60
+keep-going: true
+rerun-incomplete: true
+printshellcmds: true
+# scheduler: greedy
+default-resources:
+  - slurm_partition=pe2
+  - nodes=1
+  - tasks=1
+  - cpus_per_task=16 # use 16 cores on the same node
+  - mem_mb=200000 # 200 GB
+  - runtime=10080 # in minutes | 10080 minutes = 7 days | time=7-00:00:00
