@@ -79,7 +79,7 @@ def fit_clorinn(
 
     model = FrankWolfe(**fw_kwargs)
 
-    if method == "nnm" or "nnm-corr":
+    if method in {"nnm", "nnm-corr"}:
         thres_arg = nucnorm
     else:  # nnm-sparse
         thres_arg = (nucnorm, sparse_l1)

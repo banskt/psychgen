@@ -46,7 +46,7 @@ def main():
     # fine_grid = sorted(set(int(round(v)) for v in fine))
 
     # a sophisticated power-of-2 grid
-    n_points_each_side = n_points / 2
+    n_points_each_side = n_points // 2
 
     left_exp = np.linspace(np.log2(lo), np.log2(mid), n_points_each_side + 2)[1:-1]
     right_exp = np.linspace(np.log2(mid), np.log2(hi), n_points_each_side + 2)[1:-1]
@@ -62,7 +62,7 @@ def main():
 
     print(
         f"Coarse optimum : {best_threshold:.0f}  "
-        f"MSE at optimum : {best_row["heldout_mse"]:.6f})\n"
+        f"MSE at optimum : {best_row['heldout_mse']:.6f})\n"
         f"Fine bracket   : [{lo:.0f}, {hi:.0f}]\n"
         f"Fine grid      : {fine_grid}"
     )

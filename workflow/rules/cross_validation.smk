@@ -6,13 +6,8 @@
 #   2. Fine    – denser grid bracketing the coarse optimum (via checkpoint)
 #
 # =============================================================================
-import yaml
 
 # -- Unpack config ------------------------------------------------------------
-with open("config/cross_validation.yaml") as f:
-    cv_config = yaml.safe_load(f)
-config.update(cv_config)
-
 CV_RESULTS_DIR  = config["paths"]["cv_results_dir"]
 METHOD          = config["cross_validation"]["method"]
 MAX_ITER        = config["cross_validation"]["max_iter"]
@@ -31,7 +26,7 @@ COARSE_CV_METRIC_FILES = expand(
 
 # -- Wildcard constraints -----------------------------------------------------
 wildcard_constraints:
-    norm = r"\d+"
+    nucnorm = r"\d+"
 
 # -- Helper functions ---------------------------------------------------------
 def _fine_nucnorms(wildcards):
@@ -71,12 +66,12 @@ rule create_cv_input:
         seed             = config["cross_validation"]["mask_seed"],
     log:
         f"{CV_RESULTS_DIR}/logs/create_cv_input.log"
-    script:
-        "scripts/make_cv_input.py"
     resources:
         cpus_per_task = 1,
         mem_mb        = 16000,
         runtime       = 60,
+    script:
+        "../scripts/make_cv_input.py"
 
 
 rule cross_validation:
@@ -92,7 +87,7 @@ rule cross_validation:
     log:
         f"{CV_RESULTS_DIR}/logs/{METHOD}_cv_model_r{{nucnorm}}.log",
     script:
-        "scripts/fit_cv_model.py"
+        "../scripts/fit_cv_model.py"
 
 
 checkpoint find_fine_range:
@@ -104,25 +99,25 @@ checkpoint find_fine_range:
         n_points          = config["cross_validation"]["n_fine_points"],
     log:
         f"{CV_RESULTS_DIR}/logs/find_fine_range.log",
-    script:
-		"scripts/find_fine_grid_cv_nucnorms.py"
     resources:
         cpus_per_task = 1,
         mem_mb        = 8000,
         runtime       = 60,
+    script:
+        "../scripts/find_fine_grid_cv_nucnorms.py"
 
 
 rule summarize_cv:
     input:
-        cv_metrics         = COARSE_CV_METRIC_FILES + _fine_cv_metric_files,
+        cv_metrics = lambda wildcards: COARSE_CV_METRIC_FILES + _fine_cv_metric_files(wildcards)
     output:
         summary_out        = f"{CV_RESULTS_DIR}/summary/{METHOD}_cv_metrics.tsv",
         best_threshold_out = f"{CV_RESULTS_DIR}/summary/{METHOD}_best_threshold.json",
     log:
         f"{CV_RESULTS_DIR}/logs/summarize_cv.log",
-    script:
-        "scripts/aggregate_cv_metrics.py"
     resources:
         cpus_per_task = 1,
         mem_mb        = 8000,
         runtime       = 60,
+    script:
+        "../scripts/aggregate_cv_metrics.py"

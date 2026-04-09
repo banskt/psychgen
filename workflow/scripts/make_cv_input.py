@@ -21,6 +21,9 @@ def main():
     zscore_data_path = Path(zscore_data)
     if zscore_data_path.suffix != ".csv":
         raise ValueError("Input data must be a .csv file containing Z.")
+    out_path = Path(zmask_out)
+    if out_path.suffix != ".npz":
+        raise ValueError("Intermediate file for CV input must be a .npz file.")
 
     Z = pd.read_csv(zscore_data_path, header = 0, index_col=0).to_numpy()
     if Z.ndim != 2:
@@ -33,7 +36,7 @@ def main():
     if n_observed == 0:
         raise ValueError("Z has no observed entries.")
 
-    n_holdout = int(np.floor(args.holdout_fraction * n_observed))
+    n_holdout = int(np.floor(holdout_fraction * n_observed))
     if n_holdout == 0:
         raise ValueError("holdout-fraction is too small; no held-out entries were selected.")
 
@@ -49,7 +52,6 @@ def main():
     Ztrain = Z.copy()
     Ztrain[Zmask] = np.nan
 
-    out_path = Path(zmask_out)
     ensure_parent(out_path)
     np.savez_compressed(out_path, Ztrue=Z, Ztrain=Ztrain, Zmask=Zmask)
 

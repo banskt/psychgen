@@ -36,11 +36,11 @@ def main():
     # -- Snakemake interface ------
     cv_input =      snakemake.input.cv_input
     method =        snakemake.params.cv_method
-    nucnorm =       snakemake.wildcards.nucnorm
+    nucnorm =       float(snakemake.wildcards.nucnorm)
     max_iter =      snakemake.params.cv_max_iter
     svd_max_iter =  snakemake.params.cv_svd_max_iter
     model_out =     snakemake.output.cv_model_out
-    metrics_out =   snakemake.output.cv_metrics
+    metrics_out =   snakemake.output.cv_metrics_out
 
     # -- Fit model ------
     ztrue, ztrain, zmask = load_cv_data(cv_input)
@@ -52,7 +52,7 @@ def main():
         {
             "method": method,
             "nucnorm": nucnorm,
-            "max_iter": maxiter,
+            "max_iter": max_iter,
             "n_iter" : len(model.steps),
         }
     )
@@ -67,8 +67,8 @@ def main():
     with open(metrics_out, "w") as handle:
         json.dump(metrics, handle, indent=2, sort_keys=True)
 
-    print(f"Finished model fit at nucnorm={args.nucnorm:g}")
-    print(f"Held-out MSE: {heldout_mse:.10f}")
+    print(f"Finished model fit at nucnorm={nucnorm:g}")
+    print(f"Held-out MSE: {metrics["heldout_mse"]:.10f}")
 
 
 if __name__ == "__main__":

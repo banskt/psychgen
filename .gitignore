@@ -1,6 +1,9 @@
 # Vim swaps
 *.swp
 
+# Snakemake
+.snakemake/
+
 # Byte-compiled / optimized / DLL files
 *__pycache__/
 *.py[cod]
