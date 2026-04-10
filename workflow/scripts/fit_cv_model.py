@@ -5,7 +5,7 @@ import pickle
 from pathlib import Path
 
 import numpy as np
-from helpers import fit_clorinn, ensure_parent, clorinn_to_dict
+from helpers import fit_clorinn, ensure_parent, clorinn_to_dict, setup_logger
 
 
 def load_cv_data(path):
@@ -41,6 +41,8 @@ def main():
     svd_max_iter =  snakemake.params.cv_svd_max_iter
     model_out =     snakemake.output.cv_model_out
     metrics_out =   snakemake.output.cv_metrics_out
+    log_path =      snakemake.log[0] if snakemake.log else None
+    logger =        setup_logger(Path(__file__).stem, log_path)
 
     # -- Fit model ------
     ztrue, ztrain, zmask = load_cv_data(cv_input)
@@ -67,8 +69,10 @@ def main():
     with open(metrics_out, "w") as handle:
         json.dump(metrics, handle, indent=2, sort_keys=True)
 
-    print(f"Finished model fit at nucnorm={nucnorm:g}")
-    print(f"Held-out MSE: {metrics["heldout_mse"]:.10f}")
+    logger.info(f"Finished model fit at nucnorm={nucnorm:g}")
+    logger.info(f"Number of FW steps: {len(model.steps):d}")
+    logger.info(f"{model.convergence_msg_}")
+    logger.info(f"Held-out MSE: {metrics['heldout_mse']:.10f}")
 
 
 if __name__ == "__main__":

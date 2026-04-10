@@ -8,8 +8,8 @@ cross_validation:
   method: "nnm"
  
   # Frank-Wolfe iteration limits
-  max_iter:     1000
-  svd_max_iter: null        # null -> let Clorinn choose automatically
+  max_iter:     2000
+  svd_max_iter: 50        # null -> let Clorinn choose automatically
  
   # Held-out fraction and random seed for mask generation (create_cv_input)
   holdout_fraction: 0.1
@@ -33,10 +33,6 @@ cross_validation:
     - 8192
     - 16384
     - 32768
-    - 65536
-    - 131072
-    - 262144
-    - 524288
  
   # Number of interior points in the fine geometric grid
   # (placed strictly between the two coarse neighbours that bracket the optimum)

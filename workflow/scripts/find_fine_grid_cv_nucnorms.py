@@ -4,7 +4,7 @@ import json
 import pandas as pd
 import numpy as np
 
-from helpers import ensure_parent
+from helpers import ensure_parent, setup_logger
 
 def main():
 
@@ -13,6 +13,8 @@ def main():
     cv_metrics =            snakemake.input.cv_coarse_metrics
     fine_nucnorms_out =     snakemake.output.fine_nucnorms
     n_points =              snakemake.params.n_points
+    log_path =              snakemake.log[0] if snakemake.log else None
+    logger =                setup_logger(Path(__file__).stem, log_path)
 
     # -- Read data ------
     rows = []
@@ -60,12 +62,10 @@ def main():
         for v in fine_grid:
             fh.write(f"{v}\n")
 
-    print(
-        f"Coarse optimum : {best_threshold:.0f}  "
-        f"MSE at optimum : {best_row['heldout_mse']:.6f})\n"
-        f"Fine bracket   : [{lo:.0f}, {hi:.0f}]\n"
-        f"Fine grid      : {fine_grid}"
-    )
+    logger.info(f"Coarse optimum : {best_threshold:.0f}")
+    logger.info(f"MSE at optimum : {best_row['heldout_mse']:.6f})")
+    logger.info(f"Fine bracket   : [{lo:.0f}, {hi:.0f}]")
+    logger.info(f"Fine grid      : {fine_grid}")
 
 
 if __name__ == "__main__":

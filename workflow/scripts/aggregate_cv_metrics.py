@@ -3,7 +3,7 @@
 import json
 import pandas as pd
 
-from helpers import ensure_parent
+from helpers import ensure_parent, setup_logger
 
 def main():
 
@@ -11,6 +11,8 @@ def main():
     cv_metrics =            snakemake.input.cv_metrics
     summary_out =           snakemake.output.summary_out
     best_threshold_out =    snakemake.output.best_threshold_out
+    log_path =              snakemake.log[0] if snakemake.log else None
+    logger =                setup_logger(Path(__file__).stem, log_path)
 
     # -- Read data ------
     rows = []

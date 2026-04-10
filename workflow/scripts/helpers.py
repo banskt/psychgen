@@ -2,6 +2,9 @@
 
 from pathlib import Path
 from clorinn.optimize import FrankWolfe
+from contextlib import redirect_stdout, redirect_stderr
+import logging
+
 
 def ensure_parent(path):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -87,3 +90,41 @@ def fit_clorinn(
     model.fit(ztrain, thres_arg, X0=X0, Sigma_inv=Sigma_inv, L_inv=L_inv)
 
     return model
+
+
+def run_with_snakemake_log(func, snakemake, *args, **kwargs):
+    log_path = snakemake.log[0] if getattr(snakemake, "log", None) else None
+
+    if log_path:
+        with open(log_path, "w") as log_handle, \
+             redirect_stdout(log_handle), \
+             redirect_stderr(log_handle):
+            return func(*args, **kwargs)
+    else:
+        return func(*args, **kwargs)
+
+
+
+def setup_logger(name, log_path=None, level=logging.INFO):
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+
+    # Avoid duplicate handlers if called more than once
+    if logger.handlers:
+        return logger
+
+    formatter = logging.Formatter(
+        fmt="%(asctime)s | %(levelname)s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    if log_path:
+        ensure_parent(log_path)
+        handler = logging.FileHandler(log_path, mode="w")
+    else:
+        handler = logging.StreamHandler()
+
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.propagate = False
+    return logger

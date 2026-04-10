@@ -46,7 +46,9 @@ def _all_targets(wildcards):
     return (
         COARSE_CV_METRIC_FILES
         + _fine_cv_metric_files(wildcards)
-        + [f"{CV_RESULTS_DIR}/summary/{METHOD}_cv_metrics.tsv"]
+        + [f"{CV_RESULTS_DIR}/summary/{METHOD}_cv_metrics.tsv",
+		   f"{CV_RESULTS_DIR}/{METHOD}_fine_nucnorm_range.txt"
+		  ]
     )
 
 
@@ -108,6 +110,7 @@ checkpoint find_fine_range:
 
 
 rule summarize_cv:
+    default_target: True
     input:
         cv_metrics = lambda wildcards: COARSE_CV_METRIC_FILES + _fine_cv_metric_files(wildcards)
     output:
