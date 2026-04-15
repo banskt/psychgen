@@ -28,4 +28,3 @@ snakemake --profile profiles/nygc.yaml --jobs 50
 ## Notes
 
 - The profile assumes Snakemake's SLURM executor plugin model.
-- The rule-level resource blocks carry your original intent from the `sbatch` template: 16 CPUs, 200 GB memory, 7-day walltime for model fitting.
