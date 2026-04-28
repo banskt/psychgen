@@ -4,17 +4,17 @@
  
 cross_validation:
  
-  # Optimisation method: "nnm" or "nnm-sparse"
-  method: "nnm"
+  # Clorinn model and solver
+  model: "nnm"
+  solver: "pgd-fw"
  
-  # Frank-Wolfe iteration limits
-  max_iter:     2000
-  svd_max_iter: 50        # null -> let Clorinn choose automatically
- 
-  # Held-out fraction and random seed for mask generation (create_cv_input)
-  holdout_fraction: 0.1
-  mask_seed:        42
- 
+  # Clorinn model/solver parameters
+  max_iter: 1000
+  pgd_max_iter: 50
+  svd_max_iter: 100        # null -> let Clorinn choose automatically
+  svd_method: "left-gram"
+  dg_tol: 10 # tolerance for duality gap
+
   # Coarse nuclear-norm grid (powers of 2)
   nucnorm_coarse:
     - 1
@@ -37,3 +37,34 @@ cross_validation:
   # Number of interior points in the fine geometric grid
   # (placed strictly between the two coarse neighbours that bracket the optimum)
   n_fine_points: 6
+
+  sparse_scale: 1.0 # not a grid yet
+
+
+  # ====================================
+  # CV with matrix completion
+  # ====================================
+  matrix_completion:
+    enabled: True
+    # Held-out fraction and random seed for mask generation (create_cv_input)
+    holdout_fraction: 0.1
+    mask_seed: 42
+
+
+  # ====================================
+  # CV with split replication
+  # ====================================
+  split_replication:
+    enabled: True
+    n_splits: 5
+    split_seed: 43
+
+    # Number of left singular vectors used to define the trait subspace U_k.
+    n_factors: 20
+
+    selection:
+      # Choose the smallest nucnorm whose mean projector distance is within
+      # (best mean + one_se_multiplier * best SE + tolerances).
+      one_se_multiplier: 1.0
+      abs_tolerance: 0.0
+      rel_tolerance: 0.0
