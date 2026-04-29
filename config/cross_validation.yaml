@@ -9,8 +9,8 @@ cross_validation:
   solver: "pgd-fw"
  
   # Clorinn model/solver parameters
-  max_iter: 1000
-  pgd_max_iter: 50
+  max_iter: 2000
+  pgd_max_iter: 20
   svd_max_iter: 100        # null -> let Clorinn choose automatically
   svd_method: "left-gram"
   dg_tol: 10 # tolerance for duality gap

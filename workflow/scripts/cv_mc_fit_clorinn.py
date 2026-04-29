@@ -51,7 +51,7 @@ def main():
 
     # -- Fit model ------
     ztrue, ztrain, zmask = load_cv_data(cv_input)
-    fit_result = fit_clorinn(
+    fit_artifact = fit_clorinn(
         ztrain,
         nucnorm,
         sparse_scale=sparse_scale,
@@ -63,6 +63,7 @@ def main():
         svd_method=svd_method,
         tol=dg_tol
     )
+    fit_result = fit_artifact["final_result"]
 
     # -- Save results ------
     metrics = heldout_metrics(ztrue, fit_result.X, zmask)
@@ -81,7 +82,7 @@ def main():
     ensure_parent(metrics_out)
 
     with open(fit_result_out, "wb") as handle:
-        pickle.dump(fit_result, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(fit_artifact, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     with open(metrics_out, "w") as handle:
         json.dump(metrics, handle, indent=2, sort_keys=True)

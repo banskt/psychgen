@@ -182,7 +182,7 @@ rule cv_mc_fit_clorinn:
     log:
         CVMC.logs.fit_model,
     resources:
-        cpus_per_task = 16,
+        cpus_per_task = 8,
         mem_mb        = 200000,
         runtime       = 4320,
     script:

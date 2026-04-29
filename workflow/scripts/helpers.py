@@ -123,14 +123,23 @@ def fit_clorinn(
         fit_kwargs.update(noise_cov=noise_cov)
 
     clorinn = clorinn.fit(ztrain, **fit_kwargs)
+    result = {
+        "model" : model,
+        "solver" : solver,
+        "final_result" : clorinn.result,
+    }
 
     if solver == "pgd-fw":
-        clorinn_fw = FrankWolfe(**fw_kwargs)
-        fit_kwargs.update(X0 = clorinn.result.X)
-        clorinn_fw = clorinn_fw.fit(ztrain, **fit_kwargs)
-        return clorinn_fw.result
+        # save old result
+        result["pgd_result"] = clorinn.result
+        X0 = clorinn.result.X
+        # run FW
+        fw2 = FrankWolfe(**fw_kwargs)
+        fit_kwargs.update(X0 = X0)
+        fw2 = fw2.fit(ztrain, **fit_kwargs)
+        result["final_result"] = fw2.result
 
-    return clorinn.result
+    return result
 
 
 def run_with_snakemake_log(func, snakemake, *args, **kwargs):
