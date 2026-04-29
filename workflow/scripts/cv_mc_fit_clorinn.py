@@ -5,7 +5,7 @@ import pickle
 from pathlib import Path
 
 import numpy as np
-from helpers import fit_clorinn, ensure_parent, clorinn_to_dict, setup_logger
+from helpers import fit_clorinn, ensure_parent, setup_logger
 
 
 def load_cv_data(path):
@@ -35,43 +35,60 @@ def main():
 
     # -- Snakemake interface ------
     cv_input =      snakemake.input.cv_input
-    method =        snakemake.params.cv_method
     nucnorm =       float(snakemake.wildcards.nucnorm)
+    model =         snakemake.params.cv_model
+    solver =        snakemake.params.cv_solver
     max_iter =      snakemake.params.cv_max_iter
+    pgd_max_iter =  snakemake.params.cv_pgd_max_iter
     svd_max_iter =  snakemake.params.cv_svd_max_iter
-    model_out =     snakemake.output.cv_model_out
+    svd_method =    snakemake.params.cv_svd_method
+    dg_tol =        snakemake.params.cv_dg_tol
+    sparse_scale =  snakemake.params.cv_sparse_scale
+    fit_result_out = snakemake.output.cv_fit_out
     metrics_out =   snakemake.output.cv_metrics_out
     log_path =      snakemake.log[0] if snakemake.log else None
     logger =        setup_logger(Path(__file__).stem, log_path)
 
     # -- Fit model ------
     ztrue, ztrain, zmask = load_cv_data(cv_input)
-    model = fit_clorinn(ztrain, method, nucnorm, max_iter=max_iter, svd_max_iter=svd_max_iter)
+    fit_result = fit_clorinn(
+        ztrain,
+        nucnorm,
+        sparse_scale=sparse_scale,
+        model=model,
+        solver=solver,
+        max_iter=max_iter,
+        pgd_max_iter=pgd_max_iter,
+        svd_max_iter=svd_max_iter,
+        svd_method=svd_method,
+        tol=dg_tol
+    )
 
     # -- Save results ------
-    metrics = heldout_metrics(ztrue, model.X, zmask)
+    metrics = heldout_metrics(ztrue, fit_result.X, zmask)
     metrics.update(
         {
-            "method": method,
+            "model": model,
+            "solver" : solver,
             "nucnorm": nucnorm,
             "max_iter": max_iter,
-            "n_iter" : len(model.steps),
+            "n_iter" : fit_result.n_iter,
         }
     )
-    model_dict = clorinn_to_dict(model)
+    #model_dict = clorinn_to_dict(model)
 
-    ensure_parent(model_out)
+    ensure_parent(fit_result_out)
     ensure_parent(metrics_out)
 
-    with open(model_out, "wb") as handle:
-        pickle.dump(model_dict, handle, protocol=pickle.HIGHEST_PROTOCOL)
+    with open(fit_result_out, "wb") as handle:
+        pickle.dump(fit_result, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     with open(metrics_out, "w") as handle:
         json.dump(metrics, handle, indent=2, sort_keys=True)
 
     logger.info(f"Finished model fit at nucnorm={nucnorm:g}")
-    logger.info(f"Number of FW steps: {len(model.steps):d}")
-    logger.info(f"{model.convergence_msg_}")
+    logger.info(f"Number of iterations: {fit_result.n_iter:d}")
+    logger.info(f"{fit_result.message}")
     logger.info(f"Held-out MSE: {metrics['heldout_mse']:.10f}")
 
 

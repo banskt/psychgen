@@ -1,0 +1,30 @@
+# =============================================================================
+# All filesystem locations for PGC analysis pipeline.
+# Edit this file when moving the project to a different cluster or storage.
+# No analysis parameters live here.
+# =============================================================================
+
+paths:
+
+  data_root: "/gpfs/commons/groups/knowles_lab/data/PsychGen"
+
+  # ---------------------------------------------------------------------------
+  # Input
+  # ---------------------------------------------------------------------------
+  input:
+    # z-score matrix for PGC traits (traits x SNPs)
+    zscore: "input/v0.1/zscore_df_v0_01.csv"
+    # noise error matrix obtained from LDSC
+    noise_error: "input/v0.1/gcov_int_matrix.csv"
+
+  # ---------------------------------------------------------------------------
+  # Cross-validation intermediate / output directories
+  # ---------------------------------------------------------------------------
+  cv:
+    # Root directory for all matrix completion cross-validation outputs
+    # Subdirectories (masked_input/, models/, metrics/, summary/, logs/) are created by the pipeline
+    matrix_completion_dir: "analysis/clorinn/cv_matrix_completion"
+
+    # Root directory for all split replication cross-validation outputs
+    # Subdirectories (masked_input/, models/, metrics/, summary/, logs/) are created by the pipeline
+    split_replication_dir: "analysis/clorinn/cv_split_replication"
