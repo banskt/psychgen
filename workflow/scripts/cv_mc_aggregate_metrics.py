@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import json
+from pathlib import Path
 import pandas as pd
 
 from helpers import ensure_parent, setup_logger

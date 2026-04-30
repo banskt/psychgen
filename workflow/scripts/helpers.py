@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from pathlib import Path
-from clorinn.optimize import FrankWolfe
+from clorinn.optimize import FrankWolfe, ProjectedGradientDescent
 from contextlib import redirect_stdout, redirect_stderr
 import logging
 
@@ -10,7 +10,7 @@ def ensure_parent(path):
     Path(path).parent.mkdir(parents=True, exist_ok=True)
 
 
-def clorinn_to_dict(instance, property_list=None):
+def clorinn_to_dict_(instance, property_list=None):
     payload = {}
     if property_list is None:
         _skip      = {"logger_", "nnm_"}
@@ -22,81 +22,131 @@ def clorinn_to_dict(instance, property_list=None):
 
 def fit_clorinn(
     ztrain,
-    method,
     nucnorm,
+    sparse_scale=1.0,
+    model="nnm",
+    solver="fw",
     max_iter=1000,
+    pgd_max_iter=3,
     svd_max_iter=None,
+    svd_method='left-gram',
     tol=1e-3,
     step_tol=1e-4,
     rel_tol=1e-8,
-    show_progress=True,
+    verbose=1,
     X0=None,
-    sparse_l1=100.0,
-    L_inv=None,
-    Sigma_inv=None,
-    **kwargs,
+    noise_cov=None,
+    mask=None
 ):
     """
-    Fit a Clorinn Frank-Wolfe model.
+    Fit a Clorinn model with solver
 
     Parameters
     ----------
     ztrain : ndarray
         Training matrix.
-    method : {"nnm", "nnm-sparse", "nnm-corr"}
-        Model type.
     nucnorm : float
         Nuclear norm threshold.
-    max_iter, svd_max_iter, tol, step_tol, rel_tol, show_progress
-        Passed to FrankWolfe.
+    sparse_scale : float
+        L1 threshold used only for method="nnm-sparse".
+    model : {"nnm", "nnm-sparse", "nnm-corr"}
+        Model type in Clorinn.
+    solver : {"fw", "pgd", "pgd-fw"}
+        Solver type in Clorinn.
+    max_iter, svd_max_iter, svd_method, tol, step_tol, rel_tol, verbose
+        Passed to Clorinn. 
+        For `svd_method`, Clorinn default is 'power', but here we
+        use 'left-gram' because the data structure (only ~100 traits).
+    pgd_max_iter : int, default=5
+        Maximum number of PGD iterations
     X0 : ndarray or None
         Initial value for X0. If None, uses zeros_like(ztrain).
-    sparse_l1 : float
-        L1 threshold used only for method="nnm-sparse".
-    L_inv : ndarray or None
-        inverse of the Cholesky decomposition of Sigma, used only for method="nnm-corr".
-    Sigma_inv : ndarray or None
-        inverse of noise covariance Sigma, used only for method="nnm-corr".
-    **kwargs
-        Any additional keyword arguments passed to FrankWolfe(...).
+    noise_cov : ndarray
+        noise covariance matrix
+    mask : ndarray of bool
+        True for entries to exclude.
 
     Returns
     -------
-    model
-        Fitted FrankWolfe model.
+    result
+        Fitted <Clorinn Solver>.result
     """
 
     fw_kwargs = dict(
-        model=method,
+        model=model,
         max_iter=max_iter,
         svd_max_iter=svd_max_iter,
         tol=tol,
         step_tol=step_tol,
         rel_tol=rel_tol,
-        show_progress=show_progress,
+        verbose=verbose,
+        svd_method=svd_method,
+        stop_criteria=("duality_gap",),
     )
-    fw_kwargs.update(kwargs)
 
-    if method not in {"nnm", "nnm-sparse", "nnm-corr"}:
-        raise ValueError(f"Unsupported method: {method}")
+    pgd_kwargs = dict(
+        model=model,
+        max_iter=pgd_max_iter,
+        rel_tol=rel_tol,
+        verbose=verbose,
+        stop_criteria=("relative_loss",),
+    )
 
-    model = FrankWolfe(**fw_kwargs)
+    if model not in {"nnm", "nnm-sparse", "nnm-corr"}:
+        raise ValueError(f"Unsupported model: {model}")
 
-    if method in {"nnm", "nnm-corr"}:
-        thres_arg = nucnorm
-    else:  # nnm-sparse
-        thres_arg = (nucnorm, sparse_l1)
+    if solver not in {"fw", "pgd", "pgd-fw"}:
+        raise ValueError(f"Unsupported solver: {solver}")
 
-    model.fit(ztrain, thres_arg, X0=X0, Sigma_inv=Sigma_inv, L_inv=L_inv)
+    if solver == "fw": 
+        clorinn = FrankWolfe(**fw_kwargs)
 
-    return model
+    if solver == "pgd":
+        clorinn = ProjectedGradientDescent(**pgd_kwargs)
+
+    if solver == "pgd-fw":
+        pgd_kwargs.update(
+            stop_criteria=("relative_loss",),  # ("boundary_active", "relative_loss",) 
+        )
+        clorinn = ProjectedGradientDescent(**pgd_kwargs)
+
+    fit_kwargs = dict(
+        radius=nucnorm,
+        mask=mask,
+        X0=X0,
+    )
+
+    if model == "nnm-sparse":
+        fit_kwargs.update(sparse_scale=sparse_scale)
+
+    if model == "nnm-corr":
+        fit_kwargs.update(noise_cov=noise_cov)
+
+    clorinn = clorinn.fit(ztrain, **fit_kwargs)
+    result = {
+        "model" : model,
+        "solver" : solver,
+        "final_result" : clorinn.result,
+    }
+
+    if solver == "pgd-fw":
+        # save old result
+        result["pgd_result"] = clorinn.result
+        X0 = clorinn.result.X
+        # run FW
+        fw2 = FrankWolfe(**fw_kwargs)
+        fit_kwargs.update(X0 = X0)
+        fw2 = fw2.fit(ztrain, **fit_kwargs)
+        result["final_result"] = fw2.result
+
+    return result
 
 
 def run_with_snakemake_log(func, snakemake, *args, **kwargs):
     log_path = snakemake.log[0] if getattr(snakemake, "log", None) else None
-
     if log_path:
-        with open(log_path, "w") as log_handle, \
+        ensure_parent(log_path)
+        with open(log_path, "w", buffering=1) as log_handle, \
              redirect_stdout(log_handle), \
              redirect_stderr(log_handle):
             return func(*args, **kwargs)

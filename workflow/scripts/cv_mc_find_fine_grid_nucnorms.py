@@ -3,6 +3,7 @@
 import json
 import pandas as pd
 import numpy as np
+from pathlib import Path
 
 from helpers import ensure_parent, setup_logger
 
@@ -63,7 +64,7 @@ def main():
             fh.write(f"{v}\n")
 
     logger.info(f"Coarse optimum : {best_threshold:.0f}")
-    logger.info(f"MSE at optimum : {best_row['heldout_mse']:.6f})")
+    logger.info(f"MSE at optimum : {best_row['heldout_mse']:.6f}")
     logger.info(f"Fine bracket   : [{lo:.0f}, {hi:.0f}]")
     logger.info(f"Fine grid      : {fine_grid}")
 

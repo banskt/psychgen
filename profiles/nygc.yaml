@@ -12,4 +12,7 @@ default-resources:
   - tasks=1
   - cpus_per_task=16 # use 16 cores on the same node
   - mem_mb=200000 # 200 GB
-  - runtime=10080 # in minutes | 10080 minutes = 7 days | time=7-00:00:00
+  - runtime=3d
+  # Bug causes this to be read in seconds.
+  # https://github.com/snakemake/snakemake/issues/4039
+  # - runtime=10080 # in minutes | 10080 minutes = 7 days | time=7-00:00:00
