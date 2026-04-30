@@ -56,11 +56,15 @@ cross_validation:
   # ====================================
   split_replication:
     enabled: True
-    n_splits: 5
+    # how many independent replications of the splitting
+    n_repeats: 5
+    # how many parts each split divides the SNPs into
+    n_folds: 2 # 2 = half-split; generalises to 3, 4, etc.
     split_seed: 43
 
     # Number of left singular vectors used to define the trait subspace U_k.
-    n_factors: 20
+    n_factors: 40
+    k_pivot: 20   # k at which fine grid search is anchored
 
     selection:
       # Choose the smallest nucnorm whose mean projector distance is within
