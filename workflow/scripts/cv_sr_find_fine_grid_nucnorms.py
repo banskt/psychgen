@@ -9,6 +9,34 @@ from cv_sr_helpers import (
     choose_plateau_threshold, log_stability_curve,
 )
 
+def read_existing_int_grid(path):
+    """
+    Read an existing one-int-per-line grid file.
+
+    Missing files are allowed and return an empty list. This lets the checkpoint
+    preserve fine-grid radii that were already selected/evaluated in a previous
+    run.
+    """
+    path = Path(path)
+    if not path.exists():
+        return []
+
+    values = []
+    with open(path) as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            values.append(int(line))
+    return values
+
+
+def merge_int_grids(*grids):
+    """
+    Merge integer grids, removing duplicates and sorting numerically.
+    """
+    return sorted({int(x) for grid in grids for x in grid})
+
 
 def main():
 
@@ -91,12 +119,29 @@ def main():
     logger.info(f"Plateau onset selected : nucnorm={selected_r:.0f}  "
                 f"mean_dist={selected[score_col]:.6f}")
     logger.info(f"Fine bracket           : [{lo:.0f}, {hi:.0f}]")
-    logger.info(f"Fine grid              : {fine_grid}")
+
+    # -- Merge with old grid  -------------------------------------------------
+    logger.info(f"Check old fine grids and merge if old grid exists.")
+    old_fine_grid = read_existing_int_grid(fine_nucnorms_out)
+    merged_fine_grid = merge_int_grids(old_fine_grid, fine_grid)
+
+    if old_fine_grid:
+        logger.info(f"Existing fine grid      : {old_fine_grid}")
+        logger.info(f"New fine grid           : {fine_grid}")
+        logger.info(f"Merged fine grid        : {merged_fine_grid}")
+    else:
+        logger.info(f"Fine grid               : {fine_grid}")
+
+    if len(merged_fine_grid) < len(fine_grid):
+        logger.warning(
+            "Merged fine grid has fewer unique values than the new fine grid; "
+            "check for unexpected duplicate radii."
+        )
 
     # -- Save -----------------------------------------------------------------
     ensure_parent(fine_nucnorms_out)
     with open(fine_nucnorms_out, "w") as fh:
-        for v in fine_grid:
+        for v in merged_fine_grid:
             fh.write(f"{v}\n")
 
 
