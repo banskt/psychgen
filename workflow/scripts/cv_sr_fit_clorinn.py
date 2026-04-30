@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from helpers import fit_clorinn, ensure_parent, setup_logger
+from helpers import fit_clorinn, ensure_parent, setup_logger, run_with_snakemake_log
 
 
 def load_split_input(path):
@@ -23,9 +23,9 @@ def load_split_input(path):
 
 def extract_subspace(X):
     """
-    Compute the full thin SVD of X and return left singular vectors and values.
+    Compute the thin SVD of X and return left singular vectors and values.
     All N left singular vectors are stored; so the aggregation step can 
-    slice U[:, :k] without re-running SVD.
+    slice U[:, :k] without re-running SVD. Assume N < P.
 
     Parameters
     ----------
@@ -104,7 +104,7 @@ def main():
 
         logger.info(
             f"  fold {fold_id}: n_cols={n_cols_fit}, "
-            f"r_fit={r_fit:.4f}  (scale={np.sqrt(n_cols_fit / p_total):.6f})"
+            f"r_fit={r_fit:.4f}  (scale={np.sqrt(n_cols_fit / eligible_cols.size):.6f})"
         )
 
         Z_fold = Z[:, col_idx]
@@ -177,4 +177,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run_with_snakemake_log(main, snakemake)

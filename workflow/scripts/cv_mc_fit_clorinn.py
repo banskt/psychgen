@@ -5,12 +5,15 @@ import pickle
 from pathlib import Path
 
 import numpy as np
-from helpers import fit_clorinn, ensure_parent, setup_logger
+from helpers import fit_clorinn, ensure_parent, setup_logger, run_with_snakemake_log
 
 
 def load_cv_data(path):
-    data = np.load(path)
-    return data["Ztrue"], data["Ztrain"], data["Zmask"]
+    with np.load(path, allow_pickle=False) as data:
+        ztrue  = data["Ztrue"]
+        ztrain = data["Ztrain"]
+        zmask  = data["Zmask"]
+    return ztrue, ztrain, zmask
 
 
 def heldout_metrics(ztrue, zhat, zmask):
@@ -94,4 +97,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run_with_snakemake_log(main, snakemake)

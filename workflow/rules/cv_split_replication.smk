@@ -52,6 +52,7 @@ class CVSRPaths:
 class CVSRLogs:
     create_input:        str
     fit_model:           str  # wildcard pattern — contains {nucnorm}, {repeat_id}
+    fit_model_batch:     str  # wildcard pattern — contains {nucnorm}
     aggregate_stability: str  # wildcard pattern — contains {nucnorm}
     find_fine_range:     str
     summarize:           str
@@ -75,7 +76,7 @@ class CVSRConfig:
     n_folds:           int
     split_seed:        int
     n_factors:         int
-	k_pivot:           int
+    k_pivot:           int
     one_se_multiplier: float
     abs_tolerance:     float
     rel_tolerance:     float
@@ -109,7 +110,7 @@ def make_cv_split_replication_config(config, get_data_path) -> CVSRConfig:
         n_folds           = int(_cvsr["n_folds"]),
         split_seed        = int(_cvsr["split_seed"]),
         n_factors         = int(_cvsr["n_factors"]),
-		k_pivot           = int(_cvsr["k_pivot"]),
+        k_pivot           = int(_cvsr["k_pivot"]),
         one_se_multiplier = float(_cvsr["selection"]["one_se_multiplier"]),
         abs_tolerance     = float(_cvsr["selection"]["abs_tolerance"]),
         rel_tolerance     = float(_cvsr["selection"]["rel_tolerance"]),
@@ -128,6 +129,7 @@ def make_cv_split_replication_config(config, get_data_path) -> CVSRConfig:
         logs = CVSRLogs(
             create_input        = f"{results_dir}/logs/{prefix}_create_input.log",
             fit_model           = f"{results_dir}/logs/{prefix}_r{{nucnorm}}_s{{repeat_id}}.log",
+			fit_model_batch     = f"{results_dir}/logs/{prefix}_r{{nucnorm}}_all_repeats.log",
             aggregate_stability = f"{results_dir}/logs/{prefix}_stability_r{{nucnorm}}.log",
             find_fine_range     = f"{results_dir}/logs/{prefix}_find_fine_range.log",
             summarize           = f"{results_dir}/logs/{prefix}_summarize.log",
@@ -151,11 +153,11 @@ CVSR_REPEAT_IDS = list(range(CVSR.n_repeats))
 
 # Precomputed coarse-grid file lists
 CVSR_COARSE_NUCNORM_FITRESULT_FILES = expand(
-		CVSR_FITRESULT_PATTERN, nucnorm=CVSR.coarse_nucnorms, repeat_id=CVSR_REPEAT_IDS)
+        CVSR_FITRESULT_PATTERN, nucnorm=CVSR.coarse_nucnorms, repeat_id=CVSR_REPEAT_IDS)
 CVSR_COARSE_NUCNORM_SUBSPACE_FILES  = expand(
-		CVSR_SUBSPACE_PATTERN, nucnorm=CVSR.coarse_nucnorms, repeat_id=CVSR_REPEAT_IDS)
+        CVSR_SUBSPACE_PATTERN, nucnorm=CVSR.coarse_nucnorms, repeat_id=CVSR_REPEAT_IDS)
 CVSR_COARSE_NUCNORM_STABILITY_FILES = expand(
-		CVSR_STABILITY_PATTERN, nucnorm=CVSR.coarse_nucnorms)
+        CVSR_STABILITY_PATTERN, nucnorm=CVSR.coarse_nucnorms)
 
 
 # -- Wildcard constraints -----------------------------------------------------
@@ -198,21 +200,69 @@ rule cv_sr_create_input:
         CVSR.logs.create_input,
     resources:
         cpus_per_task = 1,
-        mem_mb        = 16000,
+        mem_mb        = 8000,
         runtime       = 60,
     script:
         "../scripts/cv_sr_create_input.py"
 
 
-rule cv_sr_fit_clorinn:
+#rule cv_sr_fit_clorinn:
+#    input:
+#        cv_input    = CVSR.paths.cv_input,
+#        zscore_data = CVSR.paths.zscore_data,
+#    output:
+#        fit_result  = CVSR_FITRESULT_PATTERN,
+#        subspace    = CVSR_SUBSPACE_PATTERN,
+#        fit_metrics = CVSR_FIT_METRICS_PATTERN,
+#    params:
+#        cv_model        = CVSR.model,
+#        cv_solver       = CVSR.solver,
+#        cv_max_iter     = CVSR.max_iter,
+#        cv_pgd_max_iter = CVSR.pgd_max_iter,
+#        cv_svd_max_iter = CVSR.svd_max_iter,
+#        cv_svd_method   = CVSR.svd_method,
+#        cv_dg_tol       = CVSR.dg_tol,
+#        cv_sparse_scale = CVSR.sparse_scale,
+#    log:
+#        CVSR.logs.fit_model,
+#    resources:
+#        cpus_per_task = 4,
+#		# realistic peak is around ~500MB.
+#		# 107 × 46,000 = 4,922,000 entries
+#		# 4,922,000 × 8 bytes = 39.4 MB ≈ 37.6 MiB
+#		# For FW, copies and solver temporaries should require around 13x = 500MB.
+#		# Add pandas CSV parsing overhead, Python imports, NumPy/SciPy/sklearn, 
+#		# BLAS/LAPACK workspace, logging, pickling, and allocator fragmentation. 
+#		# Real peak is probably more like 2GB.
+#		# NYGC comes with ~8000MB per core, but let's be aggresive.
+#        mem_mb        = 8000, 
+#        runtime       = 60,
+#    script:
+#        "../scripts/cv_sr_fit_clorinn.py"
+
+
+rule cv_sr_fit_clorinn_batch:
     input:
         cv_input    = CVSR.paths.cv_input,
         zscore_data = CVSR.paths.zscore_data,
     output:
-        fit_result  = CVSR_FITRESULT_PATTERN,
-        subspace    = CVSR_SUBSPACE_PATTERN,
-        fit_metrics = CVSR_FIT_METRICS_PATTERN,
+        fit_result = expand(
+            CVSR_FITRESULT_PATTERN,
+            nucnorm="{nucnorm}",
+            repeat_id=CVSR_REPEAT_IDS,
+        ),
+        subspace = expand(
+            CVSR_SUBSPACE_PATTERN,
+            nucnorm="{nucnorm}",
+            repeat_id=CVSR_REPEAT_IDS,
+        ),
+        fit_metrics = expand(
+            CVSR_FIT_METRICS_PATTERN,
+            nucnorm="{nucnorm}",
+            repeat_id=CVSR_REPEAT_IDS,
+        ),
     params:
+        repeat_ids      = CVSR_REPEAT_IDS,
         cv_model        = CVSR.model,
         cv_solver       = CVSR.solver,
         cv_max_iter     = CVSR.max_iter,
@@ -222,13 +272,13 @@ rule cv_sr_fit_clorinn:
         cv_dg_tol       = CVSR.dg_tol,
         cv_sparse_scale = CVSR.sparse_scale,
     log:
-        CVSR.logs.fit_model,
+        CVSR.logs.fit_model_batch,
     resources:
-        cpus_per_task = 8,
-        mem_mb        = 200000,
-        runtime       = 4320,
+        cpus_per_task = 4,
+        mem_mb        = 4000,
+        runtime       = 120,
     script:
-        "../scripts/cv_sr_fit_clorinn.py"
+        "../scripts/cv_sr_fit_clorinn_batch.py"
 
 
 rule cv_sr_aggregate_stability:
@@ -259,7 +309,7 @@ checkpoint cv_sr_find_fine_grid_nucnorms:
         fine_nucnorms    = CVSR.paths.fine_nucnorm_range,
     params:
         n_points          = CVSR.n_fine_points,
-		k_pivot           = CVSR.k_pivot,
+        k_pivot           = CVSR.k_pivot,
         one_se_multiplier = CVSR.one_se_multiplier,
         abs_tolerance     = CVSR.abs_tolerance,
         rel_tolerance     = CVSR.rel_tolerance,
@@ -276,13 +326,13 @@ checkpoint cv_sr_find_fine_grid_nucnorms:
 rule cv_sr_summarize:
     input:
         stability          = lambda wildcards: CVSR_COARSE_NUCNORM_STABILITY_FILES + _cv_sr_fine_nucnorm_stability_files(wildcards),
-		fine_nucnorms      = CVSR.paths.fine_nucnorm_range,
+        fine_nucnorms      = CVSR.paths.fine_nucnorm_range,
     output:
         summary_out        = CVSR.paths.summary,
         best_threshold_out = CVSR.paths.best_threshold,
     params:
         n_factors         = CVSR.n_factors,
-		k_pivot           = CVSR.k_pivot,
+        k_pivot           = CVSR.k_pivot,
         one_se_multiplier = CVSR.one_se_multiplier,
         abs_tolerance     = CVSR.abs_tolerance,
         rel_tolerance     = CVSR.rel_tolerance,

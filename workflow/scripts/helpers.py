@@ -145,7 +145,8 @@ def fit_clorinn(
 def run_with_snakemake_log(func, snakemake, *args, **kwargs):
     log_path = snakemake.log[0] if getattr(snakemake, "log", None) else None
     if log_path:
-        with open(log_path, "w") as log_handle, \
+        ensure_parent(log_path)
+        with open(log_path, "w", buffering=1) as log_handle, \
              redirect_stdout(log_handle), \
              redirect_stderr(log_handle):
             return func(*args, **kwargs)

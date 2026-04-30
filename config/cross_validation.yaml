@@ -13,7 +13,7 @@ cross_validation:
   pgd_max_iter: 20
   svd_max_iter: 100        # null -> let Clorinn choose automatically
   svd_method: "left-gram"
-  dg_tol: 10 # tolerance for duality gap
+  dg_tol: 1 # tolerance for duality gap
 
   # Coarse nuclear-norm grid (powers of 2)
   nucnorm_coarse:
@@ -63,7 +63,7 @@ cross_validation:
     split_seed: 43
 
     # Number of left singular vectors used to define the trait subspace U_k.
-    n_factors: 40
+    n_factors: 30
     k_pivot: 20   # k at which fine grid search is anchored
 
     selection:
