@@ -70,5 +70,5 @@ cross_validation:
       # Choose the smallest nucnorm whose mean projector distance is within
       # (best mean + one_se_multiplier * best SE + tolerances).
       one_se_multiplier: 1.0
-      abs_tolerance: 0.0
-      rel_tolerance: 0.0
+      abs_tolerance: 0.01 # differences < 0.01 in projection distance are not meaningful
+      rel_tolerance: 0.05 # additional 5% of the best distance as practical tolerance
