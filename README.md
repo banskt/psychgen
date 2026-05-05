@@ -16,13 +16,14 @@ The profile `nygc.yaml` provides a SLURM executor. Edit the executor as required
 ## Dry run
 
 ```bash
-snakemake -n --profile profiles/nygc.yaml
+snakemake -n --profile profiles/nygc.yaml cv_sr_all
 ```
+or any other target.
 
 ## Run
 
 ```bash
-snakemake --profile profiles/nygc.yaml --jobs 50
+snakemake --profile profiles/nygc.yaml --jobs 5 cv_sr_all
 ```
 
 ## Notes
