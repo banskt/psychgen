@@ -13,9 +13,9 @@ paths:
   # ---------------------------------------------------------------------------
   input:
     # z-score matrix for PGC traits (traits x SNPs)
-    zscore: "input/v0.1/zscore_df_v0_01.csv"
+    zscore: "input/pgc_v1.0/zscore_v1_0.csv"
     # noise error matrix obtained from LDSC
-    noise_error: "input/v0.1/gcov_int_matrix.csv"
+    noise_error: "input/pgc_v1.0/sampling_covariance_v1_0.csv"
 
   # ---------------------------------------------------------------------------
   # Cross-validation intermediate / output directories
