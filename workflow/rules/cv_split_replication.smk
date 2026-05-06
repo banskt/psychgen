@@ -38,6 +38,7 @@ from dataclasses import dataclass
 class CVSRPaths:
     results_dir:         str
     zscore_data:         str
+    noise_cov_data:      str
     cv_input:            str
     fine_nucnorm_range:  str
     summary:             str
@@ -51,7 +52,7 @@ class CVSRPaths:
 @dataclass(frozen=True)
 class CVSRLogs:
     create_input:        str
-    fit_model:           str  # wildcard pattern — contains {nucnorm}, {repeat_id}
+    fit_model_single:    str  # wildcard pattern — contains {nucnorm}, {repeat_id}
     fit_model_batch:     str  # wildcard pattern — contains {nucnorm}
     aggregate_stability: str  # wildcard pattern — contains {nucnorm}
     find_fine_range:     str
@@ -59,7 +60,15 @@ class CVSRLogs:
 
 
 @dataclass(frozen=True)
+class CVSRFitResources:
+    cpus_per_task:     int
+    mem_mb:            int
+    runtime:           int
+
+
+@dataclass(frozen=True)
 class CVSRConfig:
+    fit_mode:          str
     model:             str
     solver:            str
     prefix:            str
@@ -82,6 +91,7 @@ class CVSRConfig:
     rel_tolerance:     float
     paths:             CVSRPaths
     logs:              CVSRLogs
+    fit_resources:     CVSRFitResources
 
 
 def make_cv_split_replication_config(config, get_data_path) -> CVSRConfig:
@@ -89,11 +99,13 @@ def make_cv_split_replication_config(config, get_data_path) -> CVSRConfig:
     _cvsr = _cv["split_replication"]
 
     results_dir = get_data_path(config["paths"]["cv"]["split_replication_dir"])
+    fit_mode    = str(_cvsr["fit_mode"]).lower()
     model       = str(_cv["model"])
     solver      = str(_cv["solver"])
     prefix      = f"{solver}_{model}".replace("-", "_")
 
     return CVSRConfig(
+        fit_mode          = fit_mode,
         model             = model,
         solver            = solver,
         prefix            = prefix,
@@ -117,6 +129,7 @@ def make_cv_split_replication_config(config, get_data_path) -> CVSRConfig:
         paths = CVSRPaths(
             results_dir         = results_dir,
             zscore_data         = get_data_path(config["paths"]["input"]["zscore"]),
+            noise_cov_data      = get_data_path(config["paths"]["input"]["noise_covariance"]),
             cv_input            = f"{results_dir}/cv_input/split_assignments.npz",
             fine_nucnorm_range  = f"{results_dir}/{prefix}_fine_nucnorm_range.txt",
             summary             = f"{results_dir}/summary/{prefix}_stability_metrics.csv",
@@ -128,11 +141,16 @@ def make_cv_split_replication_config(config, get_data_path) -> CVSRConfig:
         ),
         logs = CVSRLogs(
             create_input        = f"{results_dir}/logs/{prefix}_create_input.log",
-            fit_model           = f"{results_dir}/logs/{prefix}_r{{nucnorm}}_s{{repeat_id}}.log",
-			fit_model_batch     = f"{results_dir}/logs/{prefix}_r{{nucnorm}}_all_repeats.log",
+            fit_model_single    = f"{results_dir}/logs/{prefix}_r{{nucnorm}}_s{{repeat_id}}.log",
+            fit_model_batch     = f"{results_dir}/logs/{prefix}_r{{nucnorm}}_all_repeats.log",
             aggregate_stability = f"{results_dir}/logs/{prefix}_stability_r{{nucnorm}}.log",
             find_fine_range     = f"{results_dir}/logs/{prefix}_find_fine_range.log",
             summarize           = f"{results_dir}/logs/{prefix}_summarize.log",
+        ),
+        fit_resources = CVSRFitResources(
+            cpus_per_task       = int(_cvsr["cpus_per_task"]),
+            mem_mb              = int(_cvsr["mem_mb"]),
+            runtime             = int(_cvsr["runtime"]),
         ),
     )
 
@@ -158,6 +176,29 @@ CVSR_COARSE_NUCNORM_SUBSPACE_FILES  = expand(
         CVSR_SUBSPACE_PATTERN, nucnorm=CVSR.coarse_nucnorms, repeat_id=CVSR_REPEAT_IDS)
 CVSR_COARSE_NUCNORM_STABILITY_FILES = expand(
         CVSR_STABILITY_PATTERN, nucnorm=CVSR.coarse_nucnorms)
+
+# Output, logs and scripts for single/batch mode in "cv_sr_fit_clorinn"
+_is_single = (CVSR.fit_mode == "single")
+def _fit_out(pattern):
+	return (
+		pattern if _is_single
+		else expand(pattern, nucnorm="{nucnorm}", repeat_id=CVSR_REPEAT_IDS)
+	)
+
+CVSR_FIT_MODE_PARAMS = {
+    "output": {
+        "fit_result":  _fit_out(CVSR_FITRESULT_PATTERN),
+        "subspace":    _fit_out(CVSR_SUBSPACE_PATTERN),
+        "fit_metrics": _fit_out(CVSR_FIT_METRICS_PATTERN),
+        },
+    "log": {
+        "fit_clorinn": CVSR.logs.fit_model_single if _is_single else CVSR.logs.fit_model_batch,
+        },
+    "script": {
+        "fit_clorinn": "../scripts/cv_sr_fit_clorinn_single_repeat.py" if _is_single
+            else "../scripts/cv_sr_fit_clorinn_batch_repeat.py"
+        },
+}
 
 
 # -- Wildcard constraints -----------------------------------------------------
@@ -206,63 +247,17 @@ rule cv_sr_create_input:
         "../scripts/cv_sr_create_input.py"
 
 
-#rule cv_sr_fit_clorinn:
-#    input:
-#        cv_input    = CVSR.paths.cv_input,
-#        zscore_data = CVSR.paths.zscore_data,
-#    output:
-#        fit_result  = CVSR_FITRESULT_PATTERN,
-#        subspace    = CVSR_SUBSPACE_PATTERN,
-#        fit_metrics = CVSR_FIT_METRICS_PATTERN,
-#    params:
-#        cv_model        = CVSR.model,
-#        cv_solver       = CVSR.solver,
-#        cv_max_iter     = CVSR.max_iter,
-#        cv_pgd_max_iter = CVSR.pgd_max_iter,
-#        cv_svd_max_iter = CVSR.svd_max_iter,
-#        cv_svd_method   = CVSR.svd_method,
-#        cv_dg_tol       = CVSR.dg_tol,
-#        cv_sparse_scale = CVSR.sparse_scale,
-#    log:
-#        CVSR.logs.fit_model,
-#    resources:
-#        cpus_per_task = 4,
-#		# realistic peak is around ~500MB.
-#		# 107 × 46,000 = 4,922,000 entries
-#		# 4,922,000 × 8 bytes = 39.4 MB ≈ 37.6 MiB
-#		# For FW, copies and solver temporaries should require around 13x = 500MB.
-#		# Add pandas CSV parsing overhead, Python imports, NumPy/SciPy/sklearn, 
-#		# BLAS/LAPACK workspace, logging, pickling, and allocator fragmentation. 
-#		# Real peak is probably more like 2GB.
-#		# NYGC comes with ~8000MB per core, but let's be aggresive.
-#        mem_mb        = 8000, 
-#        runtime       = 60,
-#    script:
-#        "../scripts/cv_sr_fit_clorinn.py"
-
-
-rule cv_sr_fit_clorinn_batch:
+rule cv_sr_fit_clorinn:
     input:
-        cv_input    = CVSR.paths.cv_input,
-        zscore_data = CVSR.paths.zscore_data,
+        cv_input       = CVSR.paths.cv_input,
+        zscore_data    = CVSR.paths.zscore_data,
+        noise_cov_data = CVSR.paths.noise_cov_data,
     output:
-        fit_result = expand(
-            CVSR_FITRESULT_PATTERN,
-            nucnorm="{nucnorm}",
-            repeat_id=CVSR_REPEAT_IDS,
-        ),
-        subspace = expand(
-            CVSR_SUBSPACE_PATTERN,
-            nucnorm="{nucnorm}",
-            repeat_id=CVSR_REPEAT_IDS,
-        ),
-        fit_metrics = expand(
-            CVSR_FIT_METRICS_PATTERN,
-            nucnorm="{nucnorm}",
-            repeat_id=CVSR_REPEAT_IDS,
-        ),
+        fit_result  = CVSR_FIT_MODE_PARAMS["output"]["fit_result"],
+        subspace    = CVSR_FIT_MODE_PARAMS["output"]["subspace"],
+        fit_metrics = CVSR_FIT_MODE_PARAMS["output"]["fit_metrics"],
     params:
-        repeat_ids      = CVSR_REPEAT_IDS,
+        repeat_ids      = CVSR_REPEAT_IDS,   # unused in single mode, harmless
         cv_model        = CVSR.model,
         cv_solver       = CVSR.solver,
         cv_max_iter     = CVSR.max_iter,
@@ -272,13 +267,13 @@ rule cv_sr_fit_clorinn_batch:
         cv_dg_tol       = CVSR.dg_tol,
         cv_sparse_scale = CVSR.sparse_scale,
     log:
-        CVSR.logs.fit_model_batch,
+        CVSR_FIT_MODE_PARAMS["log"]["fit_clorinn"]
     resources:
-        cpus_per_task = 4,
-        mem_mb        = 4000,
-        runtime       = 120,
+        cpus_per_task = CVSR.fit_resources.cpus_per_task,
+        mem_mb        = CVSR.fit_resources.mem_mb, 
+        runtime       = CVSR.fit_resources.runtime,
     script:
-        "../scripts/cv_sr_fit_clorinn_batch.py"
+        CVSR_FIT_MODE_PARAMS["script"]["fit_clorinn"]
 
 
 rule cv_sr_aggregate_stability:

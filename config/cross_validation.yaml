@@ -5,7 +5,7 @@
 cross_validation:
  
   # Clorinn model and solver
-  model: "nnm"
+  model: "nnm-corr"
   solver: "pgd-fw"
  
   # Clorinn model/solver parameters
@@ -41,6 +41,15 @@ cross_validation:
   sparse_scale: 1.0 # not a grid yet
 
 
+  # Job granularity for the fit step:
+  #   "single" -> one Snakemake job per (nucnorm, repeat_id).
+  #               Max parallelism, but pays Python startup + data load per job.
+  #   "batch"  -> one Snakemake job per nucnorm, fitting all repeats sequentially.
+  #               Fewer jobs, amortizes data loading and scheduler overhead.
+  # fit_mode: "batch"
+  # -- moved inside each CV
+
+
   # ====================================
   # CV with matrix completion
   # ====================================
@@ -49,6 +58,13 @@ cross_validation:
     # Held-out fraction and random seed for mask generation (create_cv_input)
     holdout_fraction: 0.1
     mask_seed: 42
+
+    # Job resources for 'fit_clorinn'
+    # resources for other jobs are hard-coded
+    fit_mode: "batch"
+    cpus_per_task: 4
+    mem_mb: 4000 # in mb
+    runtime: 120 # in minutes
 
 
   # ====================================
@@ -65,6 +81,22 @@ cross_validation:
     # Number of left singular vectors used to define the trait subspace U_k.
     n_factors: 30
     k_pivot: 20   # k at which fine grid search is anchored
+
+    fit_mode: "batch"
+
+    # Job resources for 'fit_clorinn'
+    # resources for other jobs are hard-coded
+    cpus_per_task: 4 
+    # realistic peak is around ~500MB.
+    # 107 × 46,000 = 4,922,000 entries
+    # 4,922,000 × 8 bytes = 39.4 MB ≈ 37.6 MiB
+    # For FW, copies and solver temporaries should require around 13x = 500MB.
+    # Add pandas CSV parsing overhead, Python imports, NumPy/SciPy/sklearn,
+    # BLAS/LAPACK workspace, logging, pickling, and allocator fragmentation.
+    # Real peak is probably more like 2GB.
+    # NYGC comes with ~8000MB per core.
+    mem_mb: 4000 # in mb
+    runtime: 120 # in minutes
 
     selection:
       # Choose the smallest nucnorm whose mean projector distance is within

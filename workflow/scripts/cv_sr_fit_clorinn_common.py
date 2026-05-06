@@ -1,4 +1,9 @@
-#!/usr/bin/env python
+"""
+Shared logic fitting Clorinn for split replication CV.
+Used by:
+    cv_sr_fit_clorinn_single_repeat.py
+    cv_sr_fit_clorinn_batch_repeat.py
+"""
 
 import json
 import pickle
@@ -7,14 +12,14 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from helpers import fit_clorinn, ensure_parent, setup_logger, run_with_snakemake_log
+from helpers import fit_clorinn, ensure_parent
 
 
 def load_split_input(path):
     with np.load(path, allow_pickle=False) as data:
-        assignments   = data["assignments"]
-        eligible_cols = data["eligible_cols"]
-        fold_sizes    = data["fold_sizes"]
+        assignments   = data["assignments"]    # (n_repeats, P_eligible) int8
+        eligible_cols = data["eligible_cols"]  # (P_eligible,)           int32
+        fold_sizes    = data["fold_sizes"]     # (n_folds,)              int32
         p_total       = int(data["p_total"])
         n_folds       = int(data["n_folds"])
         n_repeats     = int(data["n_repeats"])
@@ -26,24 +31,56 @@ def extract_subspace(X):
     return U, s
 
 
+def load_zscore_and_noise(zscore_path, noise_cov_path):
+    Z = pd.read_csv(Path(zscore_path), header=0, index_col=0).to_numpy()
+    noise_cov = pd.read_csv(Path(noise_cov_path), header=0, index_col=0).to_numpy()
+
+    if Z.ndim != 2:
+        raise ValueError("Z must be a 2D matrix.")
+    if noise_cov.ndim != 2:
+        raise ValueError("Noise covariance must be a 2D matrix.")
+    n0, n1 = noise_cov.shape
+    if n0 != n1:
+        raise ValueError(f"Noise covariance is not square: shape ({n0}, {n1}).")
+    if Z.shape[0] != n0:
+        raise ValueError(
+            f"Z has {Z.shape[0]} rows but noise_cov has {n0}."
+        )
+    return Z, noise_cov
+
+
+def parse_fit_params(snakemake_params):
+    """Parse the params shared by both rules into a plain dict."""
+    svd_max_iter = snakemake_params.cv_svd_max_iter
+    if svd_max_iter in [None, "None", "none", "null", ""]:
+        svd_max_iter = None
+    else:
+        svd_max_iter = int(svd_max_iter)
+
+    return dict(
+        max_iter     = int(snakemake_params.cv_max_iter),
+        pgd_max_iter = int(snakemake_params.cv_pgd_max_iter),
+        svd_max_iter = svd_max_iter,
+        svd_method   = snakemake_params.cv_svd_method,
+        dg_tol       = float(snakemake_params.cv_dg_tol),
+    )
+
+
 def fit_one_repeat(
     *,
     Z,
+    noise_cov,
     assignments,
     eligible_cols,
     p_total,
     n_folds,
     n_repeats,
-    nucnorm_full,
     repeat_id,
     model,
     solver,
-    max_iter,
-    pgd_max_iter,
-    svd_max_iter,
-    svd_method,
-    dg_tol,
+    nucnorm_full,
     sparse_scale,
+    fit_params, # max_iter, pgd_max_iter, svd_max_iter, svd_method, dg_tol
     fit_result_out,
     subspace_out,
     metrics_out,
@@ -77,8 +114,7 @@ def fit_one_repeat(
         r_fit      = nucnorm_full * np.sqrt(n_cols_fit / eligible_cols.size)
 
         logger.info(
-            f"  fold {fold_id}: n_cols={n_cols_fit}, "
-            f"r_fit={r_fit:.4f}, "
+            f"  fold {fold_id}: n_cols={n_cols_fit}, r_fit={r_fit:.4f}, "
             f"scale={np.sqrt(n_cols_fit / eligible_cols.size):.6f}"
         )
 
@@ -90,15 +126,14 @@ def fit_one_repeat(
             sparse_scale = sparse_scale,
             model        = model,
             solver       = solver,
-            max_iter     = max_iter,
-            pgd_max_iter = pgd_max_iter,
-            svd_max_iter = svd_max_iter,
-            svd_method   = svd_method,
-            tol          = dg_tol,
+            noise_cov    = noise_cov,
+            max_iter     = fit_params["max_iter"],
+            pgd_max_iter = fit_params["pgd_max_iter"],
+            svd_max_iter = fit_params["svd_max_iter"],
+            svd_method   = fit_params["svd_method"],
+            tol          = fit_params["dg_tol"],
         )
-
         fit_result = fit_artifact["final_result"]
-
         U, s = extract_subspace(fit_result.X)
 
         fit_artifacts[fold_id] = fit_artifact
@@ -147,93 +182,3 @@ def fit_one_repeat(
     logger.info(f"Saved fit pickle  : {fit_result_out}")
     logger.info(f"Saved subspace    : {subspace_out}")
     logger.info(f"Saved fit metrics : {metrics_out}")
-
-
-def main():
-    cv_input     = snakemake.input.cv_input
-    zscore_data  = snakemake.input.zscore_data
-
-    nucnorm_full = float(snakemake.wildcards.nucnorm)
-    repeat_ids   = [int(x) for x in snakemake.params.repeat_ids]
-
-    model        = snakemake.params.cv_model
-    solver       = snakemake.params.cv_solver
-    max_iter     = int(snakemake.params.cv_max_iter)
-    pgd_max_iter = int(snakemake.params.cv_pgd_max_iter)
-
-    svd_max_iter = snakemake.params.cv_svd_max_iter
-    if svd_max_iter in [None, "None", "none", "null", ""]:
-        svd_max_iter = None
-    else:
-        svd_max_iter = int(svd_max_iter)
-
-    svd_method   = snakemake.params.cv_svd_method
-    dg_tol       = float(snakemake.params.cv_dg_tol)
-    sparse_scale = float(snakemake.params.cv_sparse_scale)
-
-    log_path = snakemake.log[0] if snakemake.log else None
-    logger   = setup_logger(Path(__file__).stem, log_path)
-
-    fit_result_paths = list(snakemake.output.fit_result)
-    subspace_paths   = list(snakemake.output.subspace)
-    metrics_paths    = list(snakemake.output.fit_metrics)
-
-    if not (
-        len(repeat_ids)
-        == len(fit_result_paths)
-        == len(subspace_paths)
-        == len(metrics_paths)
-    ):
-        raise ValueError(
-            "repeat_ids and output lists have inconsistent lengths: "
-            f"repeat_ids={len(repeat_ids)}, "
-            f"fit_result={len(fit_result_paths)}, "
-            f"subspace={len(subspace_paths)}, "
-            f"fit_metrics={len(metrics_paths)}."
-        )
-
-    logger.info(f"Batch fit for nucnorm={nucnorm_full:g}")
-    logger.info(f"Repeat IDs: {repeat_ids}")
-
-    assignments, eligible_cols, fold_sizes, p_total, n_folds, n_repeats = (
-        load_split_input(cv_input)
-    )
-
-    Z = pd.read_csv(Path(zscore_data), header=0, index_col=0).to_numpy()
-    if Z.ndim != 2:
-        raise ValueError("Z must be a 2D matrix.")
-
-    for repeat_id, fit_out, subspace_out, metrics_out in zip(
-        repeat_ids,
-        fit_result_paths,
-        subspace_paths,
-        metrics_paths,
-    ):
-        fit_one_repeat(
-            Z               = Z,
-            assignments     = assignments,
-            eligible_cols   = eligible_cols,
-            p_total         = p_total,
-            n_folds         = n_folds,
-            n_repeats       = n_repeats,
-            nucnorm_full    = nucnorm_full,
-            repeat_id       = repeat_id,
-            model           = model,
-            solver          = solver,
-            max_iter        = max_iter,
-            pgd_max_iter    = pgd_max_iter,
-            svd_max_iter    = svd_max_iter,
-            svd_method      = svd_method,
-            dg_tol          = dg_tol,
-            sparse_scale    = sparse_scale,
-            fit_result_out  = fit_out,
-            subspace_out    = subspace_out,
-            metrics_out     = metrics_out,
-            logger          = logger,
-        )
-
-    logger.info("Finished batch fit.")
-
-
-if __name__ == "__main__":
-    run_with_snakemake_log(main, snakemake)
