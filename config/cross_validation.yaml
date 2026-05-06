@@ -10,8 +10,8 @@ cross_validation:
  
   # Clorinn model/solver parameters
   max_iter: 2000
-  pgd_max_iter: 20
-  svd_max_iter: 100        # null -> let Clorinn choose automatically
+  pgd_max_iter: 50
+  svd_max_iter: 100
   svd_method: "left-gram"
   dg_tol: 1 # tolerance for duality gap
 
@@ -95,8 +95,8 @@ cross_validation:
     # BLAS/LAPACK workspace, logging, pickling, and allocator fragmentation.
     # Real peak is probably more like 2GB.
     # NYGC comes with ~8000MB per core.
-    mem_mb: 4000 # in mb
-    runtime: 120 # in minutes
+    mem_mb: 8000 # in mb
+    runtime: 300 # in minutes
 
     selection:
       # Choose the smallest nucnorm whose mean projector distance is within

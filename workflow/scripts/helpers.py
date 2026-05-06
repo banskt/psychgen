@@ -28,7 +28,7 @@ def fit_clorinn(
     solver="fw",
     max_iter=1000,
     pgd_max_iter=3,
-    svd_max_iter=None,
+    svd_max_iter=100,
     svd_method='left-gram',
     tol=1e-3,
     step_tol=1e-4,

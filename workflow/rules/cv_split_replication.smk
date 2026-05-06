@@ -100,6 +100,10 @@ def make_cv_split_replication_config(config, get_data_path) -> CVSRConfig:
 
     results_dir = get_data_path(config["paths"]["cv"]["split_replication_dir"])
     fit_mode    = str(_cvsr["fit_mode"]).lower()
+    if fit_mode not in {"single", "batch"}:
+        raise ValueError(
+            f"split_replication.fit_mode must be 'single' or 'batch', got {fit_mode!r}."
+        )
     model       = str(_cv["model"])
     solver      = str(_cv["solver"])
     prefix      = f"{solver}_{model}".replace("-", "_")

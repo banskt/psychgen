@@ -31,36 +31,63 @@ def extract_subspace(X):
     return U, s
 
 
-def load_zscore_and_noise(zscore_path, noise_cov_path):
-    Z = pd.read_csv(Path(zscore_path), header=0, index_col=0).to_numpy()
-    noise_cov = pd.read_csv(Path(noise_cov_path), header=0, index_col=0).to_numpy()
+def load_zscore_and_noise(zscore_path, noise_cov_path=None, model="nnm"):
 
+    def read_labeled_matrix(fpath):
+        """
+        CSV is inherently untyped. Unless explicitly set to strings,
+        pandas returns mixed dtypes for columns/index of Z_df when trait names
+        are integers, e.g. "1950", "1951", etc.
+        For A_df, pandas returns strings for all columns - CSV parsing is 
+        heuristic for pandas.
+        This can cause mismatch between A_df and Z_df checks, leading to
+        value errors.
+        """
+        df = pd.read_csv(Path(fpath), header=0, index_col=0, dtype={0: str})
+        df.index = df.index.map(str)
+        df.columns = df.columns.map(str)
+        return df
+
+    Z_df = read_labeled_matrix(zscore_path)
+    Z    = Z_df.to_numpy()
     if Z.ndim != 2:
         raise ValueError("Z must be a 2D matrix.")
-    if noise_cov.ndim != 2:
-        raise ValueError("Noise covariance must be a 2D matrix.")
-    n0, n1 = noise_cov.shape
-    if n0 != n1:
-        raise ValueError(f"Noise covariance is not square: shape ({n0}, {n1}).")
-    if Z.shape[0] != n0:
+    if model != "nnm-corr":
+        return Z, None
+
+    if noise_cov_path is None:
+        raise ValueError("model='nnm-corr' requires noise_cov_data.")
+
+    A_df = read_labeled_matrix(noise_cov_path)
+
+    traits = list(Z_df.index)
+    missing_rows = set(traits) - set(A_df.index)
+    missing_cols = set(traits) - set(A_df.columns)
+    if missing_rows or missing_cols:
         raise ValueError(
-            f"Z has {Z.shape[0]} rows but noise_cov has {n0}."
+            "Noise covariance is missing traits from Z. "
+            f"Missing rows: {sorted(missing_rows)}; "
+            f"missing columns: {sorted(missing_cols)}."
         )
-    return Z, noise_cov
+    A_df = A_df.loc[traits, traits]
+    A    = A_df.to_numpy()
+    if A.ndim != 2:
+        raise ValueError("Noise covariance must be a 2D matrix.")
+
+    if not np.all(np.isfinite(A)):
+        raise ValueError("Noise covariance contains non-finite values.")
+
+    if not np.allclose(A, A.T, rtol=1e-8, atol=1e-10):
+        raise ValueError("Noise covariance is not symmetric after trait alignment.")
+
+    return Z, A
 
 
 def parse_fit_params(snakemake_params):
-    """Parse the params shared by both rules into a plain dict."""
-    svd_max_iter = snakemake_params.cv_svd_max_iter
-    if svd_max_iter in [None, "None", "none", "null", ""]:
-        svd_max_iter = None
-    else:
-        svd_max_iter = int(svd_max_iter)
-
     return dict(
         max_iter     = int(snakemake_params.cv_max_iter),
         pgd_max_iter = int(snakemake_params.cv_pgd_max_iter),
-        svd_max_iter = svd_max_iter,
+        svd_max_iter = int(snakemake_params.cv_svd_max_iter),
         svd_method   = snakemake_params.cv_svd_method,
         dg_tol       = float(snakemake_params.cv_dg_tol),
     )

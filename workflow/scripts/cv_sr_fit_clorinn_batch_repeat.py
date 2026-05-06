@@ -50,7 +50,11 @@ def main():
     assignments, eligible_cols, fold_sizes, p_total, n_folds, n_repeats = (
         load_split_input(cv_input)
     )
-    Z, noise_cov = load_zscore_and_noise(zscore_data, noise_cov_data)
+    Z, noise_cov = load_zscore_and_noise(
+        zscore_data,
+        noise_cov_path = noise_cov_data,
+        model = model
+    )
 
     for repeat_id, fit_result_out, subspace_out, metrics_out in zip(
         repeat_ids, fit_result_paths, subspace_paths, metrics_paths,
