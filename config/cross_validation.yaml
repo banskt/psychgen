@@ -6,7 +6,7 @@ cross_validation:
  
   # Clorinn model and solver
   model: "nnm-corr"
-  solver: "pgd-fw"
+  solver: "pgd-afw"
  
   # Clorinn model/solver parameters
   max_iter: 2000

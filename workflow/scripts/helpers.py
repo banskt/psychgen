@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 
 from pathlib import Path
-from clorinn.optimize import FrankWolfe, ProjectedGradientDescent
+from clorinn.optimize import (
+    FrankWolfe,
+    AwayStepFrankWolfe,
+    ProjectedGradientDescent,
+)
 from contextlib import redirect_stdout, redirect_stderr
 import logging
 
@@ -51,7 +55,7 @@ def fit_clorinn(
         L1 threshold used only for method="nnm-sparse".
     model : {"nnm", "nnm-sparse", "nnm-corr"}
         Model type in Clorinn.
-    solver : {"fw", "pgd", "pgd-fw"}
+    solver : {"fw", "afw", "pgd", "pgd-fw", "pgd-afw"}
         Solver type in Clorinn.
     max_iter, svd_max_iter, svd_method, tol, step_tol, rel_tol, verbose
         Passed to Clorinn. 
@@ -95,16 +99,19 @@ def fit_clorinn(
     if model not in {"nnm", "nnm-sparse", "nnm-corr"}:
         raise ValueError(f"Unsupported model: {model}")
 
-    if solver not in {"fw", "pgd", "pgd-fw"}:
+    if solver not in {"fw", "afw", "pgd", "pgd-fw", "pgd-afw"}:
         raise ValueError(f"Unsupported solver: {solver}")
 
     if solver == "fw": 
         clorinn = FrankWolfe(**fw_kwargs)
 
+    if solver == "afw":
+        clorinn = AwayStepFrankWolfe(**fw_kwargs)
+
     if solver == "pgd":
         clorinn = ProjectedGradientDescent(**pgd_kwargs)
 
-    if solver == "pgd-fw":
+    if solver in ("pgd-fw", "pgd-afw"):
         pgd_kwargs.update(
             stop_criteria=("relative_loss",),  # ("boundary_active", "relative_loss",) 
         )
@@ -129,12 +136,15 @@ def fit_clorinn(
         "final_result" : clorinn.result,
     }
 
-    if solver == "pgd-fw":
+    if solver in ("pgd-fw", "pgd-afw"):
         # save old result
         result["pgd_result"] = clorinn.result
         X0 = clorinn.result.X
-        # run FW
-        fw2 = FrankWolfe(**fw_kwargs)
+        # run FW / AFW
+        if solver == "pgd-fw":
+            fw2 = FrankWolfe(**fw_kwargs)
+        elif solver == "pgd-afw":
+            fw2 = AwayStepFrankWolfe(**fw_kwargs)
         fit_kwargs.update(X0 = X0)
         fw2 = fw2.fit(ztrain, **fit_kwargs)
         result["final_result"] = fw2.result
