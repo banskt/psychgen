@@ -5,7 +5,7 @@ import pickle
 from pathlib import Path
 
 import numpy as np
-from helpers import fit_clorinn, ensure_parent, setup_logger, run_with_snakemake_log
+from helpers import fit_clorinn, ensure_parent, setup_logger
 
 
 def load_cv_data(path):
@@ -97,4 +97,4 @@ def main():
 
 
 if __name__ == "__main__":
-    run_with_snakemake_log(main, snakemake)
+    main()

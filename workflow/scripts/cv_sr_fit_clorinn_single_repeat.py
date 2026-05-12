@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 from pathlib import Path
 
-from helpers import setup_logger, run_with_snakemake_log
+from helpers import setup_logger
 from cv_sr_fit_clorinn_common import (
     load_split_input,
     load_zscore_and_noise,
@@ -60,4 +60,4 @@ def main():
 
 
 if __name__ == "__main__":
-    run_with_snakemake_log(main, snakemake)
+    main()

@@ -6,6 +6,7 @@ from clorinn.optimize import (
     AwayStepFrankWolfe,
     ProjectedGradientDescent,
 )
+from clorinn import configure_logging as clorinn_configure_logging
 from contextlib import redirect_stdout, redirect_stderr
 import logging
 
@@ -165,7 +166,7 @@ def run_with_snakemake_log(func, snakemake, *args, **kwargs):
 
 
 
-def setup_logger(name, log_path=None, level=logging.INFO):
+def setup_logger(name="psychgen", log_path=None, level=logging.INFO):
     logger = logging.getLogger(name)
     logger.setLevel(level)
 
@@ -173,10 +174,10 @@ def setup_logger(name, log_path=None, level=logging.INFO):
     if logger.handlers:
         return logger
 
-    formatter = logging.Formatter(
-        fmt="%(asctime)s | %(levelname)s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-    )
+    script_fmt = "%(asctime)s | {:<14s} | %(levelname)-7s | %(message)s".format("psychgen")
+    log_fmt    = "%(asctime)s | %(name)-14s | %(levelname)-7s | %(message)s"
+    date_fmt   = "%Y-%m-%d %H:%M:%S"
+    formatter  = logging.Formatter(fmt=script_fmt, datefmt=date_fmt)
 
     if log_path:
         ensure_parent(log_path)
@@ -187,4 +188,18 @@ def setup_logger(name, log_path=None, level=logging.INFO):
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     logger.propagate = False
+
+    # Route Clorinn's package logger to the same file.
+    # mode="a" by default — appends after our truncate above.
+    if log_path:
+        clorinn_configure_logging(
+            filename=log_path, verbosity=1, 
+            fmt=log_fmt, datefmt=date_fmt, formatter="short",
+            force=True)
+    else:
+        clorinn_configure_logging(
+            verbosity=1, 
+            fmt=log_fmt, datefmt=date_fmt, formatter="short",
+            force=True)
+
     return logger
